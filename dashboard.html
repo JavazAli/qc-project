@@ -2,26 +2,26 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>داشبورد لایو بازخورد</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>داشبورد بازخورد لحظه‌ای</title>
   <style>
-    body{font-family:Tahoma,Arial,sans-serif;margin:0;padding:24px;background:#fff;color:#111}
+    body{font-family:tahoma,arial,sans-serif;margin:0;background:#fff;color:#111}
+    .wrap{max-width:960px;margin:24px auto;padding:0 16px}
     h1{font-size:22px;margin:0 0 12px}
-    .grid{display:grid;grid-template-columns:1fr;gap:12px;max-width:900px;margin:0 auto}
-    .card{border:1px solid #eee;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+    .card{border:1px solid #eee;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.04);background:#fff;margin-bottom:12px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    input{padding:8px;border:1px solid #ddd;border-radius:8px;width:100px;text-align:center}
     table{width:100%;border-collapse:collapse}
     th,td{padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center}
     tr:last-child td{border-bottom:0}
-    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    input{padding:8px;border:1px solid #ddd;border-radius:8px;width:100px;text-align:center}
-    .pill{padding:6px 10px;border-radius:999px;border:1px solid #ddd}
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd}
     .ok{background:#f1fff1;border-color:#b8e6b8}
     .warn{background:#fffbe6;border-color:#f5e3a3}
     .bad{background:#fff2f2;border-color:#f1b5b5}
   </style>
 </head>
 <body>
-  <div class="grid">
+  <div class="wrap">
     <div class="card">
       <h1>داشبورد بازخورد لحظه‌ای</h1>
       <div class="row">
@@ -32,6 +32,7 @@
         <button onclick="refresh()">بروزرسانی</button>
       </div>
     </div>
+
     <div class="card">
       <table id="tbl">
         <thead>
@@ -42,11 +43,11 @@
       <div id="updated" class="pill" style="margin-top:10px">در حال بارگذاری…</div>
     </div>
   </div>
-<script>
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw9O7cD1YrYALndlEa8uJSiSYyQzL2isQxGcCQ4AEBLWzQK-coKex8FfEYDUL1gQIMhXQ/exec";
 
-function B(a,b){return Math.exp(lngamma(a)+lngamma(b)-lngamma(a+b));}
-// Lanczos approximation for ln(gamma)
+<script>
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyNS70MUtt7kIq7PtsmlE6k71dut1-L_OrsBk-uWmLNYMNRe6HZGSZP2EzWAKDRqjb45w/exec";
+
+/* --- توابع بتا برای محاسبه P(S<tau) --- */
 function lngamma(z){
   const g=7;
   const p=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,
@@ -56,9 +57,8 @@ function lngamma(z){
   let t=z+g+0.5;
   return 0.5*Math.log(2*Math.PI)+(z+0.5)*Math.log(t)-t+Math.log(x)-Math.log(z+1);
 }
-// Regularized incomplete beta via continued fraction
 function betacf(a,b,x){
-  const MAXIT=100; const EPS=3e-8; const FPMIN=1e-30;
+  const MAXIT=100, EPS=3e-8, FPMIN=1e-30;
   let qab=a+b, qap=a+1, qam=a-1, c=1, d=1-qab*x/qap;
   if(Math.abs(d)<FPMIN) d=FPMIN; d=1/d; let h=d;
   for(let m=1, m2=2; m<=MAXIT; m++, m2+=2){
@@ -71,10 +71,12 @@ function betacf(a,b,x){
 }
 function ibeta(x,a,b){
   if(x<=0) return 0; if(x>=1) return 1;
-  let bt=Math.exp(lngamma(a+b)-lngamma(a)-lngamma(b)+a*Math.log(x)+b*Math.log(1-x));
+  const bt=Math.exp(lngamma(a+b)-lngamma(a)-lngamma(b)+a*Math.log(x)+b*Math.log(1-x));
   if(x < (a+1)/(a+b+2)) return bt*betacf(a,b,x)/a;
   return 1 - bt*betacf(b,a,1-x)/b;
 }
+
+/* --- خواندن خلاصه و تصمیم --- */
 async function refresh(){
   const tau=parseFloat(document.getElementById('tau').value);
   const kappa=parseFloat(document.getElementById('kappa').value);
@@ -82,16 +84,18 @@ async function refresh(){
   const b0=parseFloat(document.getElementById('b0').value);
   const updated=document.getElementById('updated');
   updated.textContent='در حال بروزرسانی…';
+
   try{
-    const r=await fetch(WEB_APP_URL+'?summary=true');
-    const js=await r.json();
+    const r = await fetch(WEB_APP_URL + '?summary=true', {method:'GET'});
+    const js = await r.json();
     const tb=document.querySelector('#tbl tbody');
     tb.innerHTML='';
+
     js.sections.forEach(s=>{
       const alpha=a0+s.sum, beta=b0+(s.n - s.sum);
       const pBelow=ibeta(tau, alpha, beta); // P(S<tau)
-      const mean = (s.n>0)? (s.sum/s.n).toFixed(2) : '-';
-      const decision = (pBelow>kappa)? 'Refund/Stop & Fix' : 'OK';
+      const mean=(s.n>0)?(s.sum/s.n).toFixed(2):'-';
+      const decision=(pBelow>kappa)?'Refund/Stop & Fix':'OK';
       const tr=document.createElement('tr');
       tr.innerHTML=`<td>${s.name}</td><td>${s.n}</td><td>${mean}</td><td>${pBelow.toFixed(2)}</td><td>${decision}</td>`;
       if(pBelow>kappa) tr.className='bad'; else if(pBelow>0.5) tr.className='warn'; else tr.className='ok';
@@ -100,6 +104,7 @@ async function refresh(){
     updated.textContent='آخرین به‌روزرسانی: ' + new Date(js.updated).toLocaleTimeString('fa-IR');
   }catch(e){
     updated.textContent='⛔ خطا در دریافت داده.';
+    console.error(e);
   }
 }
 refresh();
